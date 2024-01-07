@@ -30,6 +30,11 @@ Route::post('login', [ApiController::class,'login']);
 Route::group([
     'middleware'=> ['auth:api'],
 ], function(){
+    Route::post('setMemberBasicInfo', [ApiController::class,'setMemberBasicInfo']);
+    Route::post('setMemberGeneralInfo', [ApiController::class,'setMemberGeneralInfo']);
+    Route::post('setMemberFinancialInfo', [ApiController::class,'setMemberFinancialInfo']);
+    
+
     Route::get('profile', [ApiController::class,'profile']);
     Route::get('refresh', [ApiController::class,'refreshToken']);
     Route::get('logout', [ApiController::class,'logout']);
