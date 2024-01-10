@@ -11,5 +11,6 @@ Technology: PHP, Laravel, MySQL
 
 > User data upload endpoint (DONE)
 
-> Testing (~)
+> Testing (DONE)
 
+> Provisioning admin(~)
