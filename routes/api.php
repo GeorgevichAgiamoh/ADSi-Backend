@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 // -- OPEN
 Route::post('register', [ApiController::class,'register']);
 Route::post('login', [ApiController::class,'login']);
+Route::post('setFirstAdminUserInfo', [ApiController::class,'setFirstAdminUserInfo']); // For first Admin (call on postman)
 
 // - PROTECTED
 
@@ -34,10 +35,16 @@ Route::group([
     Route::post('setMemberGeneralInfo', [ApiController::class,'setMemberGeneralInfo']);
     Route::post('setMemberFinancialInfo', [ApiController::class,'setMemberFinancialInfo']);
 
+    Route::post('setAdminUserInfo', [ApiController::class,'setAdminUserInfo']);
+    
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
     Route::get('getMemberFinancialInfo/{uid}', [ApiController::class, 'getMemberFinancialInfo']);
+    Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
 
+    Route::get('getHighlights', [ApiController::class, 'getHighlights']);
+
+    
     Route::get('refresh', [ApiController::class,'refreshToken']);
     Route::get('logout', [ApiController::class,'logout']);
     Route::get('checkTokenValidity', [ApiController::class,'checkTokenValidity']);

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\admin_user;
+use App\Models\announcements;
 use App\Models\member_basic_data;
 use App\Models\member_financial_data;
 use App\Models\member_general_data;
@@ -54,6 +56,7 @@ class ApiController extends Controller
         ]);
         $mid = $request->memid;
         $eml = $request->email;
+        $isadmin = $request->has('admin');
         if(!empty($mid) || !empty($eml)){
             $pld = User::where(!empty($mid)?"memid":"email","=", !empty($mid)?$mid:$eml)->first();
             //JWT Auth
@@ -62,12 +65,38 @@ class ApiController extends Controller
                 "password"=> $request->password,
             ]);
             if(!empty($token)){
-                return response()->json([
-                    "status"=> true,
-                    "message"=> "User login successfully",
-                    "token"=> $token,
-                    "pld"=> $pld,
-                ]);
+                if($isadmin){
+                    $apld = admin_user::where("memid","=", $pld->memid)->first();
+                    if($apld){
+                        $customClaims = [
+                            'admin' => '1', 
+                            'pd1' => $apld->pd1, 
+                            'pd2' => $apld->pd2, 
+                            'pp1' => $apld->pp1, 
+                            'pp2' => $apld->pp2, 
+                            'pm1' => $apld->pm1, 
+                            'pm2' => $apld->pm2, 
+                        ];
+                        $token = JWTAuth::claims(function ($claims) use ($customClaims) {
+                            $claims->put($customClaims);
+                        })->refresh();
+                        return response()->json([
+                            "status"=> true,
+                            "message"=> "Admin login successfully",
+                            "token"=> $token,
+                            "pld"=> $pld,
+                        ]);
+                    }
+                    
+                }else{
+                    return response()->json([
+                        "status"=> true,
+                        "message"=> "User login successfully",
+                        "token"=> $token,
+                        "pld"=> $pld,
+                    ]);
+                }
+                
             }
         }
         
@@ -179,7 +208,7 @@ class ApiController extends Controller
         ]);
     }
     
-    //Profile API (POST)
+
     public function setMemberFinancialInfo(Request $request){
         $request->validate([
             "memid"=>"required",
@@ -208,6 +237,110 @@ class ApiController extends Controller
             "pld"=> $pld,
         ]);
     }
+
+    public function getAnnouncements(){
+        $pld = announcements::all();
+        // Respond
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $pld,
+        ]);
+    }
+
+
+    //--------------- ADMIN CODES
+
+    public function setFirstAdminUserInfo(){
+        admin_user::updateOrCreate(
+            ["memid"=> '11111111',],
+            [
+            "lname"=> 'ADSI',
+            "oname"=> 'Stable Shield',
+            "eml"=> 'admin@adsicoop.com.ng',
+            "role"=> '0',
+            "pd1"=> '1',
+            "pd2"=> '1',
+            "pp1"=> '1',
+            "pp2"=> '1',
+            "pm1"=> '1',
+            "pm2"=> '1',
+            
+        ]);
+        // Respond
+        return response()->json([
+            "status"=> true,
+            "message"=> "First Admin User Created"
+        ]);
+    }
+
+
+    //POST
+    public function setAdminUserInfo(Request $request){
+        $request->validate([
+            "memid"=>"required",
+            "lname"=> "required",
+            "oname"=> "required",
+            "eml"=> "required|email",
+            "role"=> "required",
+            "pd1"=> "required",
+            "pd2"=> "required",
+            "pp1"=> "required",
+            "pp2"=> "required",
+            "pm1"=> "required",
+            "pm2"=> "required",
+        ]);
+        admin_user::updateOrCreate(
+            ["memid"=> $request->memid,],
+            [
+            "lname"=> $request->lname,
+            "oname"=> $request->oname,
+            "eml"=> $request->eml,
+            "role"=> $request->role,
+            "pd1"=> $request->pd1,
+            "pd2"=> $request->pd2,
+            "pp1"=> $request->pp1,
+            "pp2"=> $request->pp2,
+            "pm1"=> $request->pm1,
+            "pm2"=> $request->pm2,
+            
+        ]);
+        // Respond
+        return response()->json([
+            "status"=> true,
+            "message"=> "Admin User Info updated"
+        ]);
+    }
+
+    //GET 
+    public function getHighlights(){
+        $user = auth()->user();
+        if (auth()->payload()->hasClaim('admin') && $user->admin=='1') {
+            $totalUsers = User::count();
+            $totalMales = member_general_data::where('sex', 'M')->count();
+            $totalFemales = member_general_data::where('sex', 'F')->count();
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> [
+                    'totalUsers'=>$totalUsers,
+                    'totalMales'=>$totalMales,
+                    'totalFemales'=> $totalFemales
+                ],
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ]);
+    }
+
+    
+
+
+
+
+    //------------------------------------
 
     //Refresh Token API (GET)
     public function refreshToken(){
