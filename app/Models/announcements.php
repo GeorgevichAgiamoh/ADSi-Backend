@@ -8,7 +8,7 @@ class announcements extends Model
 {
     protected $table = 'announcements';
     protected $fillable = [
-        'time', 'msg'
+        'title', 'msg','time'
     ];
     /*protected $hidden = [
         'password',

@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('member_financial_data', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table) {
             $table->string('memid')->primary();
-            $table->string('bnk');
-            $table->string('anum');
+            $table->string('phn')->nullable(); // Making phone optional
+            $table->string('password');
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('member_financial_data');
+        Schema::dropIfExists('users');
     }
 };

@@ -9,7 +9,7 @@ class member_financial_data extends Model
     protected $table = 'member_financial_data'; 
     protected $primaryKey = 'memid';
     protected $fillable = [
-        'memid', 'bnk', 'anum',
+        'memid', 'bnk', 'anum','aname'
     ];
     /*protected $hidden = [
         'password',

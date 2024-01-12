@@ -34,8 +34,10 @@ Route::group([
     Route::post('setMemberBasicInfo', [ApiController::class,'setMemberBasicInfo']);
     Route::post('setMemberGeneralInfo', [ApiController::class,'setMemberGeneralInfo']);
     Route::post('setMemberFinancialInfo', [ApiController::class,'setMemberFinancialInfo']);
+    Route::post('authAsAdmin', [ApiController::class,'authAsAdmin']);
 
     Route::post('setAdminUserInfo', [ApiController::class,'setAdminUserInfo']);
+    Route::post('setAnnouncements', [ApiController::class,'setAnnouncements']);
     
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
@@ -43,6 +45,8 @@ Route::group([
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);
+    Route::get('getVerificationStats', [ApiController::class, 'getVerificationStats']);
+    Route::get('getMembersByV/{vstat}', [ApiController::class, 'getMembersByV']);
 
     
     Route::get('refresh', [ApiController::class,'refreshToken']);

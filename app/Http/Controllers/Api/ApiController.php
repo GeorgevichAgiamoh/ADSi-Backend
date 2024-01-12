@@ -19,13 +19,13 @@ class ApiController extends Controller
         //Data validation
         $request->validate([
             "memid"=>"required|unique:users",
-            "email"=> "nullable|email|unique:users",
+            "phn"=> "nullable|unique:users",
             "password"=> "required",
         ]);
         //Save Data to DB
         User::create([
             "memid"=> $request->memid,
-            "email"=> $request->email,
+            "phn"=> $request->phn,
             "password"=> bcrypt($request->password),
         ]);
         $token = JWTAuth::attempt([
@@ -51,44 +51,20 @@ class ApiController extends Controller
         //Data validation
         $request->validate([
             "memid"=>"nullable",
-            "email"=> "nullable|email",
+            "phn"=> "nullable",
             "password"=> "required",
         ]);
         $mid = $request->memid;
-        $eml = $request->email;
-        $isadmin = $request->has('admin');
+        $phn = $request->phn;
         if(!empty($mid) || !empty($eml)){
-            $pld = User::where(!empty($mid)?"memid":"email","=", !empty($mid)?$mid:$eml)->first();
-            //JWT Auth
-            $token = JWTAuth::attempt([
-                "memid"=> $pld->memid,
-                "password"=> $request->password,
-            ]);
-            if(!empty($token)){
-                if($isadmin){
-                    $apld = admin_user::where("memid","=", $pld->memid)->first();
-                    if($apld){
-                        $customClaims = [
-                            'admin' => '1', 
-                            'pd1' => $apld->pd1, 
-                            'pd2' => $apld->pd2, 
-                            'pp1' => $apld->pp1, 
-                            'pp2' => $apld->pp2, 
-                            'pm1' => $apld->pm1, 
-                            'pm2' => $apld->pm2, 
-                        ];
-                        $token = JWTAuth::claims(function ($claims) use ($customClaims) {
-                            $claims->put($customClaims);
-                        })->refresh();
-                        return response()->json([
-                            "status"=> true,
-                            "message"=> "Admin login successfully",
-                            "token"=> $token,
-                            "pld"=> $pld,
-                        ]);
-                    }
-                    
-                }else{
+            $pld = User::where(!empty($mid)?"memid":"phn","=", !empty($mid)?$mid:$phn)->first();
+            if($pld){
+                //JWT Auth
+                $token = JWTAuth::attempt([
+                    "memid"=> $pld->memid,
+                    "password"=> $request->password,
+                ]);
+                if(!empty($token)){
                     return response()->json([
                         "status"=> true,
                         "message"=> "User login successfully",
@@ -96,10 +72,8 @@ class ApiController extends Controller
                         "pld"=> $pld,
                     ]);
                 }
-                
             }
         }
-        
         // Respond
         return response()->json([
             "status"=> false,
@@ -108,6 +82,33 @@ class ApiController extends Controller
     }
 
     //---Protected from here
+
+    public function authAsAdmin(){
+        $user = auth()->user();
+        $apld = admin_user::where("memid","=", $user->memid)->first();
+        if($apld){
+            $customClaims = [
+                'role'=>$apld->role,
+                'pd1' => $apld->pd1, 
+                'pd2' => $apld->pd2, 
+                'pp1' => $apld->pp1, 
+                'pp2' => $apld->pp2, 
+                'pm1' => $apld->pm1, 
+                'pm2' => $apld->pm2, 
+            ];
+            $token = JWTAuth::customClaims($customClaims)->fromUser(auth()->user());
+            return response()->json([
+                "status"=> true,
+                "message"=> "Admin authorization granted",
+                "token"=> $token,
+            ]);
+        }
+        // Respond
+        return response()->json([
+            "status"=> false,
+            "message"=> "Failed"
+        ]);
+    }
 
     //Profile API (POST)
     public function setMemberBasicInfo(Request $request){
@@ -118,6 +119,7 @@ class ApiController extends Controller
             "mname"=> "nullable",
             "eml"=> "nullable|email",
             "phn"=> "required",
+            "verif"=> "required",
         ]);
         member_basic_data::updateOrCreate(
             ["memid"=> $request->memid,],
@@ -127,6 +129,7 @@ class ApiController extends Controller
             "mname"=> $request->mname,
             "eml"=> $request->eml,
             "phn"=> $request->phn,
+            "verif"=> $request->verif,
         ]);
         // Respond
         return response()->json([
@@ -189,7 +192,7 @@ class ApiController extends Controller
             "kin_type"=> $request->kin_type,
             "kin_phn"=> $request->kin_phn,
             "kin_addr"=> $request->kin_addr,
-            "kin_eml"=> $request->kin_eml,
+            "kin_eml"=> $request->kin_eml
         ]);
         // Respond
         return response()->json([
@@ -214,17 +217,19 @@ class ApiController extends Controller
             "memid"=>"required",
             "bnk"=> "required",
             "anum"=> "required",
+            "aname"=> "required",
         ]);
         member_financial_data::updateOrCreate(
             ["memid"=> $request->memid,],
             [
             "bnk"=> $request->bnk,
             "anum"=> $request->anum,
+            "aname"=> $request->aname,
         ]);
         // Respond
         return response()->json([
             "status"=> true,
-            "message"=> "Membert Financial Info updated"
+            "message"=> "Success"
         ]);
     }
 
@@ -233,11 +238,12 @@ class ApiController extends Controller
         // Respond
         return response()->json([
             "status"=> true,
-            "message"=> "Membert Financial Info retrieved",
+            "message"=> "Success",
             "pld"=> $pld,
         ]);
     }
 
+    //GET
     public function getAnnouncements(){
         $pld = announcements::all();
         // Respond
@@ -314,8 +320,8 @@ class ApiController extends Controller
 
     //GET 
     public function getHighlights(){
-        $user = auth()->user();
-        if (auth()->payload()->hasClaim('admin') && $user->admin=='1') {
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
             $totalUsers = User::count();
             $totalMales = member_general_data::where('sex', 'M')->count();
             $totalFemales = member_general_data::where('sex', 'F')->count();
@@ -332,8 +338,82 @@ class ApiController extends Controller
         return response()->json([
             "status"=> false,
             "message"=> "Access denied"
-        ]);
+        ],401);
     }
+
+    //POST
+    public function setAnnouncements(Request $request){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+              $request->validate([
+                "title"=>"required",
+                "msg"=> "required",
+                "time"=> "required",
+            ]);
+            announcements::create([
+                "title"=> $request->title,
+                "msg"=> $request->msg,
+                "time"=> $request->time,
+            ]);
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Announcement Added"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET 
+    public function getVerificationStats(){
+        $pd1 = auth()->payload()->get('pd1');
+        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+            $totalVerified = member_basic_data::where('verif', '1')->count();
+            $totalUnverified = member_basic_data::where('verif', '0')->count();
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> [
+                    'totalVerified'=>$totalVerified,
+                    'totalUnverified'=>$totalUnverified
+                ],
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function getMembersByV($vstat){
+        $pd1 = auth()->payload()->get('pd1');
+        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+            $members = member_basic_data::where('verif', $vstat)->get();
+            $pld = [];
+            foreach ($members as $member) {
+                $memid = $member->memid;
+                $genData = member_general_data::where('memid', $memid)->first();
+                $pld[] = [
+                    'b'=> $member,
+                    'g'=> $genData,
+                ];
+            }
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
 
     
 

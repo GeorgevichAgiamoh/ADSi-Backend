@@ -13,4 +13,6 @@ Technology: PHP, Laravel, MySQL
 
 > Testing (DONE)
 
-> Provisioning admin(~)
+> Provisioning admin (DONE)
+
+> Building more endpoints (~)
