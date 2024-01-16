@@ -8,7 +8,12 @@ use App\Models\announcements;
 use App\Models\member_basic_data;
 use App\Models\member_financial_data;
 use App\Models\member_general_data;
+use App\Models\payment_refs;
+use App\Models\pays0;
+use App\Models\pays1;
+use App\Models\pays2;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use App\Models\User;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -81,6 +86,53 @@ class ApiController extends Controller
         ]);
     }
 
+
+    //Paystack Webhook (POST, formdata)
+    public function paystackConf(Request $request){ 
+        $secret = 'pk_test_78e515246b2448630a3ecd230ef593732b2e60c4';
+        $computedHash = hash_hmac('sha512', json_encode($request->all()), $secret);
+        if ($computedHash === $request->header('x-paystack-signature')) {
+            if($request->event == "charge.success"){
+                $ref = $request->data->reference;
+                $pld = payment_refs::where("ref","=", $ref)->first();
+                if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
+                    if(!$pld){ // Its unique
+                        $amt = $request->data->amount; //In Kobo
+                        $nm = $request->data->metadata->name; 
+                        $tm = $request->data->metadata->time; 
+                        payment_refs::create([
+                            "ref"=> $ref,
+                            "amt"=> $amt,
+                            "time"=> $tm,
+                        ]);
+                        $payinfo = explode('-',$ref);
+                        $upl = [
+                            "memid"=>$payinfo[3],
+                            "ref"=> $ref,
+                            "name"=> $nm,
+                            "time"=> $tm,
+                        ];
+                        if($payinfo[1]=='0'){
+                            pays0::create($upl);
+                        }else if ($payinfo[1]=='1'){
+                            $yr = $request->data->metadata->year;
+                            $upl['year'] = $yr;
+                            pays1::create($upl);
+                        }else{ // ie 2
+                            $sh = $request->data->metadata->shares;
+                            $upl['shares'] = $sh;
+                            pays2::create($upl);
+                        }
+                    }
+                }
+            }
+            return response()->json(['status' => 'success'], 200);
+        } else {
+            // Request is invalid
+            return response()->json(['status' => 'error'], 401);
+        }
+    }
+
     //---Protected from here
 
     public function authAsAdmin(){
@@ -120,6 +172,7 @@ class ApiController extends Controller
             "eml"=> "nullable|email",
             "phn"=> "required",
             "verif"=> "required",
+            "pay"=> "required",
         ]);
         member_basic_data::updateOrCreate(
             ["memid"=> $request->memid,],
@@ -130,6 +183,7 @@ class ApiController extends Controller
             "eml"=> $request->eml,
             "phn"=> $request->phn,
             "verif"=> $request->verif,
+            'pay'=> $request->pay,
         ]);
         // Respond
         return response()->json([
@@ -407,6 +461,29 @@ class ApiController extends Controller
                 "message"=> "Success",
                 "pld"=> $pld
             ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //POST
+    public function uploadPayment(Request $request){ //todo
+        $pp1 = auth()->payload()->get('pp1');
+        if ( $pp1!=null  && $pp1=='1') {
+            $request->validate([
+                "memid"=>"required",
+                "ref"=> "required",
+                "name"=> "required",
+                "time"=> "required",
+            ]);
+            //TODO upload 
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Announcement Added"
+            ]);
         }
         return response()->json([
             "status"=> false,
