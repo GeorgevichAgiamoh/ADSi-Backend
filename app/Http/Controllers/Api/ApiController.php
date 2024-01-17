@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\admin_user;
+use App\Models\adsi_info;
 use App\Models\announcements;
 use App\Models\member_basic_data;
 use App\Models\member_financial_data;
@@ -97,7 +98,8 @@ class ApiController extends Controller
                 $pld = payment_refs::where("ref","=", $ref)->first();
                 if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
                     if(!$pld){ // Its unique
-                        $amt = $request->data->amount; //In Kobo
+                        $payinfo = explode('-',$ref);
+                        $amt = $payinfo[2];
                         $nm = $request->data->metadata->name; 
                         $tm = $request->data->metadata->time; 
                         payment_refs::create([
@@ -105,7 +107,6 @@ class ApiController extends Controller
                             "amt"=> $amt,
                             "time"=> $tm,
                         ]);
-                        $payinfo = explode('-',$ref);
                         $upl = [
                             "memid"=>$payinfo[3],
                             "ref"=> $ref,
@@ -308,6 +309,21 @@ class ApiController extends Controller
         ]);
     }
 
+    //GET
+    public function getMemPays($memid){
+        $shares = pays2::where('memid', $memid)->get();
+        $dues = pays1::where('memid', $memid)->get();
+        $pld = [
+            's'=> $shares,
+            'd'=> $dues,
+        ];
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $pld,
+        ]);  
+    }
+
 
     //--------------- ADMIN CODES
 
@@ -469,20 +485,45 @@ class ApiController extends Controller
     }
 
     //POST
-    public function uploadPayment(Request $request){ //todo
-        $pp1 = auth()->payload()->get('pp1');
-        if ( $pp1!=null  && $pp1=='1') {
+    public function uploadPayment(Request $request){ 
+        $pp2 = auth()->payload()->get('pp2');
+        if ( $pp2!=null  && $pp2=='1') {
             $request->validate([
-                "memid"=>"required",
                 "ref"=> "required",
                 "name"=> "required",
                 "time"=> "required",
             ]);
-            //TODO upload 
+            $ref = $request->ref;
+            $payinfo = explode('-',$ref);
+            $amt = $payinfo[2];
+            $nm = $request->name; 
+            $tm = $request->time; 
+            /*payment_refs::create([ DONT INCLUDE SINCE NOT ON PAYSTACK
+                "ref"=> $ref,
+                "amt"=> $amt,
+                "time"=> $tm,
+            ]);*/
+            $upl = [
+                "memid"=>$payinfo[3],
+                "ref"=> $ref,
+                "name"=> $nm,
+                "time"=> $tm,
+            ];
+            if($payinfo[1]=='0'){
+                pays0::create($upl);
+            }else if ($payinfo[1]=='1'){
+                $yr = $request->year;
+                $upl['year'] = $yr;
+                pays1::create($upl);
+            }else{ // ie 2
+                $sh = $request->shares;
+                $upl['shares'] = $sh;
+                pays2::create($upl);
+            }
             // Respond
             return response()->json([
                 "status"=> true,
-                "message"=> "Announcement Added"
+                "message"=> "Success"
             ]);
         }
         return response()->json([
@@ -490,6 +531,205 @@ class ApiController extends Controller
             "message"=> "Access denied"
         ],401);
     }
+
+     //GET
+     public function getPayments($payId){
+        $pp1 = auth()->payload()->get('pp1');
+        if ( $pp1!=null  && $pp1=='1') { //Can read from dir
+            $pld = null;
+            if( $payId=='0' ){
+                $pld = pays0::all();
+            }
+            if( $payId=='1' ){
+                $pld = pays1::all();
+            }
+            if( $payId=='2' ){
+                $pld = pays2::all();
+            }
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //POST
+    public function setAdsiInfo(Request $request){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $request->validate([
+                "memid"=>"required",
+                "cname"=>"required",
+                "regno"=> "required",
+                "addr"=> "required",
+                "nationality"=>"required",
+                "state"=> "required",
+                "lga"=> "required",
+                "aname"=>"required",
+                "anum"=> "required",
+                "bnk"=> "required",
+                "pname"=>"required",
+                "peml"=> "required",
+                "pphn"=> "required",
+                "paddr"=>"required",
+                
+            ]);
+            adsi_info::updateOrCreate(
+                ["memid"=> $request->memid,],
+                [
+                "cname"=> $request->cname,
+                "regno"=> $request->regno,
+                "addr"=> $request->addr,
+                "nationality"=> $request->nationality,
+                "state"=> $request->state,
+                "lga"=> $request->lga,
+                "aname"=> $request->aname,
+                "anum"=> $request->anum,
+                "bnk"=> $request->bnk,
+                "pname"=> $request->pname,
+                "peml"=> $request->peml,
+                "pphn"=> $request->pphn,
+                "paddr"=> $request->paddr,
+            ]);
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "ADSI Info updated"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function getAsdiInfo(){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $pld = adsi_info::where('memid', '11111111')->first();
+            if($pld){
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Success",
+                    "pld"=> $pld,
+                ]);
+            }
+            return response()->json([
+                "status"=> false,
+                "message"=> "No Data Yet",
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);   
+    }
+
+     //GET
+     public function getAdmins(){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $pld = admin_user::all();
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function getAdmin($adminId){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null) { //Granted to all admin as is needed on first page
+            $pld = admin_user::where('memid', $adminId)->first();
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //POST
+    public function setAdmin(Request $request){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $request->validate([
+                "memid"=>"required",
+                "lname"=>"required",
+                "oname"=> "required",
+                "eml"=> "required",
+                "role"=>"required",
+                "pd1"=> "required",
+                "pd2"=> "required",
+                "pp1"=>"required",
+                "pp2"=> "required",
+                "pm1"=> "required",
+                "pm2"=>"required",
+            ]);
+            admin_user::updateOrCreate(
+                ["memid"=> $request->memid,],
+                [
+                "lname"=> $request->lname,
+                "oname"=> $request->oname,
+                "eml"=> $request->eml,
+                "role"=> $request->role,
+                "pd1"=> $request->pd1,
+                "pd2"=> $request->pd2,
+                "pp1"=> $request->pp1,
+                "pp2"=> $request->pp2,
+                "pm1"=> $request->pm1,
+                "pm2"=> $request->pm2,
+            ]);
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Admin Added"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function removeAdmin($adminId){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null && $role=='0') {
+            $dels = admin_user::where('memid', $adminId)->delete();
+            if($dels>0){
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Success",
+                ]);  
+            }
+            return response()->json([
+                "status"=> false,
+                "message"=> "Nothing to delete"
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
 
 
     

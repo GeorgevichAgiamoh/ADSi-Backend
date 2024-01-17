@@ -15,4 +15,6 @@ Technology: PHP, Laravel, MySQL
 
 > Provisioning admin (DONE)
 
-> Building more endpoints (~)
+> Building more endpoints (DONE)
+
+> Messaging (~)

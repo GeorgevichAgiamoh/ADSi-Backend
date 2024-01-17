@@ -38,15 +38,24 @@ Route::group([
 
     Route::post('setAdminUserInfo', [ApiController::class,'setAdminUserInfo']);
     Route::post('setAnnouncements', [ApiController::class,'setAnnouncements']);
+    Route::post('uploadPayment', [ApiController::class,'uploadPayment']);
+    Route::post('setAdsiInfo', [ApiController::class,'setAdsiInfo']);
+    Route::post('setAdmin', [ApiController::class,'setAdmin']);
     
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
     Route::get('getMemberFinancialInfo/{uid}', [ApiController::class, 'getMemberFinancialInfo']);
+    Route::get('getMemPays/{memid}', [ApiController::class, 'getMemPays']);
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);
     Route::get('getVerificationStats', [ApiController::class, 'getVerificationStats']);
     Route::get('getMembersByV/{vstat}', [ApiController::class, 'getMembersByV']);
+    Route::get('getPayments/{payId}', [ApiController::class, 'getPayments']);
+    Route::get('getAsdiInfo', [ApiController::class, 'getAsdiInfo']);
+    Route::get('getAdmins', [ApiController::class, 'getAdmins']);
+    Route::get('getAdmin/{adminId}', [ApiController::class, 'getAdmin']);
+    Route::get('removeAdmin/{adminId}', [ApiController::class, 'removeAdmin']);
 
     
     Route::get('refresh', [ApiController::class,'refreshToken']);
