@@ -25,7 +25,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::post('register', [ApiController::class,'register']);
 Route::post('login', [ApiController::class,'login']);
 Route::post('setFirstAdminUserInfo', [ApiController::class,'setFirstAdminUserInfo']); // For first Admin (call on postman)
-
+Route::post('paystackConf', [ApiController::class,'paystackConf']);
 // - PROTECTED
 
 Route::group([
@@ -35,6 +35,7 @@ Route::group([
     Route::post('setMemberGeneralInfo', [ApiController::class,'setMemberGeneralInfo']);
     Route::post('setMemberFinancialInfo', [ApiController::class,'setMemberFinancialInfo']);
     Route::post('authAsAdmin', [ApiController::class,'authAsAdmin']);
+    Route::post('uploadFile', [ApiController::class,'uploadFile']);
 
     Route::post('setAdminUserInfo', [ApiController::class,'setAdminUserInfo']);
     Route::post('setAnnouncements', [ApiController::class,'setAnnouncements']);
@@ -46,6 +47,9 @@ Route::group([
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
     Route::get('getMemberFinancialInfo/{uid}', [ApiController::class, 'getMemberFinancialInfo']);
     Route::get('getMemPays/{memid}', [ApiController::class, 'getMemPays']);
+    Route::get('getMemDuesByYear/{memid}/{year}', [ApiController::class, 'getMemDuesByYear']);
+    Route::get('getFile/{folder}/{filename}', [ApiController::class, 'getFile']);
+    Route::get('fileExists/{folder}/{filename}', [ApiController::class, 'fileExists']);
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);

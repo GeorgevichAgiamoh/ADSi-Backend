@@ -324,6 +324,72 @@ class ApiController extends Controller
         ]);  
     }
 
+    //GET
+    public function getMemDuesByYear($memid, $year){
+        $dues = pays1::where('memid', $memid)->where('year', $year)->first();
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $dues,
+        ]);  
+    }
+
+    //Files
+
+    //POST (FILES)
+    public function uploadFile(Request $request){
+        $request->validate([
+            'file' => 'required', //|mimes:jpeg,png,jpg,gif,svg|max:2048
+            'filename' => 'required',
+            'folder' => 'required',
+        ]);
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $filename = $request->filename;
+            $folder = $request->folder;
+            $file->move(public_path('uploads/'.$folder), $filename);
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success"
+            ]);
+        } else {
+            return response()->json([
+                "status"=> false,
+                "message"=> "No file provided"
+            ]);
+        }
+    }
+
+    //GET (FILE)
+    public function getFile($folder,$filename){
+        $filePath = public_path('uploads/'.$folder.'/'.$filename);
+        if (file_exists($filePath)) {
+            return response()->file($filePath);
+        } else {
+            return response()->json([
+                "status" => false,
+                "message" => "File not found",
+            ], 404);
+        }
+    }
+
+    //GET (FILE)
+    public function fileExists($folder,$filename){
+        $filePath = public_path('uploads/'.$folder.'/'.$filename);
+        if (file_exists($filePath)) {
+            return response()->json([
+                "status" => true,
+                "message" => "Yes, it does",
+            ]);
+        } else {
+            return response()->json([
+                "status" => false,
+                "message" => "File not found",
+            ]);
+        }
+    }
+
 
     //--------------- ADMIN CODES
 
