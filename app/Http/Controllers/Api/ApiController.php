@@ -13,6 +13,7 @@ use App\Models\payment_refs;
 use App\Models\pays0;
 use App\Models\pays1;
 use App\Models\pays2;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\User;
@@ -90,18 +91,20 @@ class ApiController extends Controller
 
     //Paystack Webhook (POST, formdata)
     public function paystackConf(Request $request){ 
-        $secret = 'pk_test_78e515246b2448630a3ecd230ef593732b2e60c4';
-        $computedHash = hash_hmac('sha512', json_encode($request->all()), $secret);
-        if ($computedHash === $request->header('x-paystack-signature')) {
-            if($request->event == "charge.success"){
-                $ref = $request->data->reference;
+        Log::info('Paystack hooked ' . json_encode($request->all()));
+        $secret = 'sk_test_b3a8e08803d112049764495a5e08168d6514785f';
+        $computedHash = hash_hmac('sha512', $request->getContent(), $secret);// Dont use json_encode($request->all()) in hashing
+        if ($computedHash == $request->header('x-paystack-signature')) {
+            $payload = json_decode($request->getContent(), true);
+            if($payload['event'] == "charge.success"){
+                $ref = $payload['data']['reference'];
                 $pld = payment_refs::where("ref","=", $ref)->first();
                 if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
                     if(!$pld){ // Its unique
                         $payinfo = explode('-',$ref);
                         $amt = $payinfo[2];
-                        $nm = $request->data->metadata->name; 
-                        $tm = $request->data->metadata->time; 
+                        $nm = $payload['data']['metadata']['name'];
+                        $tm = $payload['data']['metadata']['time'];
                         payment_refs::create([
                             "ref"=> $ref,
                             "amt"=> $amt,
@@ -115,20 +118,30 @@ class ApiController extends Controller
                         ];
                         if($payinfo[1]=='0'){
                             pays0::create($upl);
+                            member_basic_data::where("memid", $payinfo[3])->update(['pay' => '1']);
                         }else if ($payinfo[1]=='1'){
-                            $yr = $request->data->metadata->year;
+                            $yr = $payload['data']['metadata']['year'];
                             $upl['year'] = $yr;
                             pays1::create($upl);
                         }else{ // ie 2
-                            $sh = $request->data->metadata->shares;
+                            $sh = $payload['data']['metadata']['shares'];
                             $upl['shares'] = $sh;
                             pays2::create($upl);
                         }
+                        Log::info('SUCCESS');
+                    }else{
+                        Log::info('PLD EXISTS'.json_encode($pld));
                     }
+                }else{
+                    Log::info('STR BAD '.$ref);
                 }
+            }else{
+                Log::info('EVENTS BAD '.$payload['event']);
             }
             return response()->json(['status' => 'success'], 200);
         } else {
+            Log::info('Invalid hash '.$request->header('x-paystack-signature'));
+            Log::info('Computed '.$computedHash);
             // Request is invalid
             return response()->json(['status' => 'error'], 401);
         }
@@ -564,7 +577,7 @@ class ApiController extends Controller
             $amt = $payinfo[2];
             $nm = $request->name; 
             $tm = $request->time; 
-            /*payment_refs::create([ DONT INCLUDE SINCE NOT ON PAYSTACK
+            /*payment_refs::create([ DONT INCLUDE SINCE CUSTOM RECORDS NOT ON PAYSTACK
                 "ref"=> $ref,
                 "amt"=> $amt,
                 "time"=> $tm,
@@ -577,6 +590,7 @@ class ApiController extends Controller
             ];
             if($payinfo[1]=='0'){
                 pays0::create($upl);
+                member_basic_data::where("memid", $payinfo[3])->update(['pay' => '1']);
             }else if ($payinfo[1]=='1'){
                 $yr = $request->year;
                 $upl['year'] = $yr;
