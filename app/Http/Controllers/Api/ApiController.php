@@ -539,9 +539,18 @@ class ApiController extends Controller
 
     //GET
     public function getMembersByV($vstat){
+        $start = 0;
+        $count = 20;
+        if(request()->has('start') && request()->has('count')) {
+            $start = request()->input('start');
+            $count = request()->input('count');
+        }
         $pd1 = auth()->payload()->get('pd1');
         if ( $pd1!=null  && $pd1=='1') { //Can read from dir
-            $members = member_basic_data::where('verif', $vstat)->get();
+            $members = member_basic_data::where('verif', $vstat)
+                ->skip($start)
+                ->take($count)
+                ->get();
             $pld = [];
             foreach ($members as $member) {
                 $memid = $member->memid;
@@ -553,7 +562,7 @@ class ApiController extends Controller
             }
             return response()->json([
                 "status"=> true,
-                "message"=> "Success",
+                "message"=> "Retrived the first $count starting at $start position",
                 "pld"=> $pld
             ]);   
         }
