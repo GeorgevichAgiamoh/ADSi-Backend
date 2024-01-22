@@ -17,6 +17,8 @@ Technology: PHP, Laravel, MySQL
 
 > Building more endpoints (DONE)
 
-> Optimizing (~)
+> Sending Mails (DONE) 
+
+> Optimizing ( 40% )
 
 > Messaging (...)

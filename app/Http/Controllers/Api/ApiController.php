@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\SSSMails;
 use App\Models\admin_user;
 use App\Models\adsi_info;
 use App\Models\announcements;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ApiController extends Controller
@@ -819,6 +821,34 @@ class ApiController extends Controller
         ],401);
     }
 
+    //POST 
+    public function sendMail(Request $request){
+        $pd2 = auth()->payload()->get('pd2');
+        if ( $pd2!=null  && $pd2=='1') { //Can write to dir
+            $request->validate([
+                "name"=>"required",
+                "email"=>"required",
+                "subject"=>"required",
+                "body"=> "required",
+            ]);
+            $data = [
+                'name' => $request->name,
+                'subject' => $request->subject,
+                'body' => $request->body,
+            ];
+        
+            Mail::to($request->email)->send(new SSSMails($data));
+            
+            return response()->json([
+                "status"=> true,
+                "message"=> "Mailed Successfully",
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
 
 
     

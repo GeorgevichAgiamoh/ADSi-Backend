@@ -42,6 +42,7 @@ Route::group([
     Route::post('uploadPayment', [ApiController::class,'uploadPayment']);
     Route::post('setAdsiInfo', [ApiController::class,'setAdsiInfo']);
     Route::post('setAdmin', [ApiController::class,'setAdmin']);
+    Route::post('sendMail', [ApiController::class,'sendMail']);
     
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
