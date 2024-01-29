@@ -7,9 +7,11 @@ use App\Mail\SSSMails;
 use App\Models\admin_user;
 use App\Models\adsi_info;
 use App\Models\announcements;
+use App\Models\files;
 use App\Models\member_basic_data;
 use App\Models\member_financial_data;
 use App\Models\member_general_data;
+use App\Models\password_reset_tokens;
 use App\Models\payment_refs;
 use App\Models\pays0;
 use App\Models\pays1;
@@ -28,13 +30,13 @@ class ApiController extends Controller
         //Data validation
         $request->validate([
             "memid"=>"required|unique:users",
-            "phn"=> "nullable|unique:users",
+            "email"=> "required|unique:users|email",
             "password"=> "required",
         ]);
         //Save Data to DB
         User::create([
             "memid"=> $request->memid,
-            "phn"=> $request->phn,
+            "email"=> $request->email,
             "password"=> bcrypt($request->password),
         ]);
         $token = JWTAuth::attempt([
@@ -59,14 +61,12 @@ class ApiController extends Controller
     public function login(Request $request){
         //Data validation
         $request->validate([
-            "memid"=>"nullable",
-            "phn"=> "nullable",
+            "memid"=>"required",
             "password"=> "required",
         ]);
         $mid = $request->memid;
-        $phn = $request->phn;
         if(!empty($mid) || !empty($eml)){
-            $pld = User::where(!empty($mid)?"memid":"phn","=", !empty($mid)?$mid:$phn)->first();
+            $pld = User::where("memid","=", $mid)->first();
             if($pld){
                 //JWT Auth
                 $token = JWTAuth::attempt([
@@ -89,6 +89,74 @@ class ApiController extends Controller
             "message"=> "Invalid login details",
         ]);
     }
+
+    //Send Reset PWD mail (POST, formdata)
+    public function sendPasswordResetEmail(Request $request){
+        //Data validation
+        $request->validate([
+            "memid"=>"required",
+        ]);
+        $mid = $request->memid;
+        $pld = User::where("memid","=", $mid)->first();
+        if($pld){
+            $email = $pld->email;
+            $token = Str::random(60); //Random reset token
+            password_reset_tokens::updateOrCreate(
+                ['email' => $email],
+                ['email' => $email, 'token' => $token, 'created_at' => now()]
+            );
+            $data = [
+                'name' => $mid,
+                'subject' => 'Reset your ADSI password',
+                'body' => 'Please go to this link to reset your password. It will expire in 1 hour: https://portal.adsicoop.com.ng/passwordreset/'.$token,
+            ];
+        
+            Mail::to($request->email)->send(new SSSMails($data));
+            
+            return response()->json([
+                "status"=> true,
+                "message"=> "Password reset token sent to mail",
+            ]);   
+        }
+        // Respond
+        return response()->json([
+            "status"=> false,
+            "message"=> "ADSI number not found",
+        ]);
+    }
+
+
+    //Reset Pwd API (POST, formdata)
+    public function resetPassword(Request $request){
+        //Data validation
+        $request->validate([
+            "token"=>"required",
+            "pwd"=>"required",
+        ]);
+        $pld = password_reset_tokens::where("token","=", $request->token)->first();
+        if($pld){
+            $email = $pld->email;
+            $usr = User::where("email","=", $email)->first();
+            if($usr){
+                $usr->update([
+                    "password"=>bcrypt($request->pwd),
+                ]);
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Password reset successful",
+                ]);   
+            }
+            return response()->json([
+                "status"=> false,
+                "message"=> "User not found",
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Denied. Invalid/Expired Token",
+        ]);
+    }
+    
 
 
     //Paystack Webhook (POST, formdata)
@@ -234,7 +302,6 @@ class ApiController extends Controller
             "town"=> "required",
             "addr"=> "required",
             "job"=> "required",
-            "nin"=> "required",
             "kin_fname"=> "required",
             "kin_lname"=> "required",
             "kin_mname"=> "nullable",
@@ -255,7 +322,6 @@ class ApiController extends Controller
             "town"=> $request->town,
             "addr"=> $request->addr,
             "job"=> $request->job,
-            "nin"=> $request->nin,
             "kin_fname"=> $request->kin_fname,
             "kin_lname"=> $request->kin_lname,
             "kin_mname"=> $request->kin_mname,
@@ -363,7 +429,13 @@ class ApiController extends Controller
             $filename = $request->filename;
             $folder = $request->folder;
             $file->move(public_path('uploads/'.$folder), $filename);
-            // Respond
+            // Log It
+            $user = auth()->user();
+            files::create([
+                'memid' => $user->memid,
+                'file'=> $filename,
+                'folder'=> $folder,
+            ]);
             return response()->json([
                 "status"=> true,
                 "message"=> "Success"
@@ -374,6 +446,17 @@ class ApiController extends Controller
                 "message"=> "No file provided"
             ]);
         }
+    }
+
+    //GET (FILES)
+    public function getFiles($uid){
+        $pld = files::where('memid', $uid)->get();
+        // Respond
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $pld,
+        ]);
     }
 
     //GET (FILE)
@@ -524,14 +607,16 @@ class ApiController extends Controller
         if ( $pd1!=null  && $pd1=='1') { //Can read from dir
             $totalVerified = member_basic_data::where('verif', '1')->count();
             $totalUnverified = member_basic_data::where('verif', '0')->count();
+            $totalDeleted = member_basic_data::where('verif', '2')->count();
             return response()->json([
                 "status"=> true,
                 "message"=> "Success",
                 "pld"=> [
                     'totalVerified'=>$totalVerified,
-                    'totalUnverified'=>$totalUnverified
+                    'totalUnverified'=>$totalUnverified,
+                    'totalDeleted'=>$totalDeleted
                 ],
-            ]);   
+            ]);
         }
         return response()->json([
             "status"=> false,

@@ -9,7 +9,7 @@ class member_general_data extends Model
     protected $table = 'member_general_data';
     protected $primaryKey = 'memid';
     protected $fillable = [
-        'memid', 'sex', 'marital','dob', 'nationality', 'state','lga', 'town', 'addr','job', 'nin', 'kin_fname','kin_lname','kin_mname','kin_type','kin_phn','kin_addr','kin_eml',
+        'memid', 'sex', 'marital','dob', 'nationality', 'state','lga', 'town', 'addr','job', 'kin_fname','kin_lname','kin_mname','kin_type','kin_phn','kin_addr','kin_eml',
     ];
     /*protected $hidden = [
         'password',

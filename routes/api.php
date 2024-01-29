@@ -26,6 +26,8 @@ Route::post('register', [ApiController::class,'register']);
 Route::post('login', [ApiController::class,'login']);
 Route::post('setFirstAdminUserInfo', [ApiController::class,'setFirstAdminUserInfo']); // For first Admin (call on postman)
 Route::post('paystackConf', [ApiController::class,'paystackConf']);
+Route::post('sendPasswordResetEmail', [ApiController::class,'sendPasswordResetEmail']);
+Route::post('resetPassword', [ApiController::class,'resetPassword']);
 // - PROTECTED
 
 Route::group([
@@ -52,6 +54,7 @@ Route::group([
     Route::get('getFile/{folder}/{filename}', [ApiController::class, 'getFile']);
     Route::get('fileExists/{folder}/{filename}', [ApiController::class, 'fileExists']);
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
+    Route::get('getFiles/{uid}', [ApiController::class, 'getFiles']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);
     Route::get('getVerificationStats', [ApiController::class, 'getVerificationStats']);
