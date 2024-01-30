@@ -28,6 +28,7 @@ Route::post('setFirstAdminUserInfo', [ApiController::class,'setFirstAdminUserInf
 Route::post('paystackConf', [ApiController::class,'paystackConf']);
 Route::post('sendPasswordResetEmail', [ApiController::class,'sendPasswordResetEmail']);
 Route::post('resetPassword', [ApiController::class,'resetPassword']);
+Route::get('getFile/{folder}/{filename}', [ApiController::class, 'getFile']);
 // - PROTECTED
 
 Route::group([
@@ -49,12 +50,12 @@ Route::group([
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
     Route::get('getMemberFinancialInfo/{uid}', [ApiController::class, 'getMemberFinancialInfo']);
-    Route::get('getMemPays/{memid}', [ApiController::class, 'getMemPays']);
+    Route::get('getMemPays/{memid}/{payId}', [ApiController::class, 'getMemPays']);
     Route::get('getMemDuesByYear/{memid}/{year}', [ApiController::class, 'getMemDuesByYear']);
-    Route::get('getFile/{folder}/{filename}', [ApiController::class, 'getFile']);
     Route::get('fileExists/{folder}/{filename}', [ApiController::class, 'fileExists']);
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
     Route::get('getFiles/{uid}', [ApiController::class, 'getFiles']);
+    Route::get('getMemPaysStat/{memid}/{payId}', [ApiController::class, 'getMemPaysStat']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);
     Route::get('getVerificationStats', [ApiController::class, 'getVerificationStats']);
@@ -64,6 +65,8 @@ Route::group([
     Route::get('getAdmins', [ApiController::class, 'getAdmins']);
     Route::get('getAdmin/{adminId}', [ApiController::class, 'getAdmin']);
     Route::get('removeAdmin/{adminId}', [ApiController::class, 'removeAdmin']);
+    Route::get('getRevenue/{payId}', [ApiController::class, 'getRevenue']);
+    Route::get('getOutstandingRegFees', [ApiController::class, 'getOutstandingRegFees']);
 
     
     Route::get('refresh', [ApiController::class,'refreshToken']);

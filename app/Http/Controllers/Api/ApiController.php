@@ -103,7 +103,7 @@ class ApiController extends Controller
             $token = Str::random(60); //Random reset token
             password_reset_tokens::updateOrCreate(
                 ['email' => $email],
-                ['email' => $email, 'token' => $token, 'created_at' => now()]
+                ['email' => $email, 'token' => $token]
             );
             $data = [
                 'name' => $mid,
@@ -111,7 +111,7 @@ class ApiController extends Controller
                 'body' => 'Please go to this link to reset your password. It will expire in 1 hour: https://portal.adsicoop.com.ng/passwordreset/'.$token,
             ];
         
-            Mail::to($request->email)->send(new SSSMails($data));
+            Mail::to($email)->send(new SSSMails($data));
             
             return response()->json([
                 "status"=> true,
@@ -177,7 +177,7 @@ class ApiController extends Controller
                         $tm = $payload['data']['metadata']['time'];
                         payment_refs::create([
                             "ref"=> $ref,
-                            "amt"=> $amt,
+                            "amt"=> intval($amt),
                             "time"=> $tm,
                         ]);
                         $upl = [
@@ -185,6 +185,7 @@ class ApiController extends Controller
                             "ref"=> $ref,
                             "name"=> $nm,
                             "time"=> $tm,
+                            "amt"=> intval($amt)
                         ];
                         if($payinfo[1]=='0'){
                             pays0::create($upl);
@@ -258,6 +259,22 @@ class ApiController extends Controller
             "verif"=> "required",
             "pay"=> "required",
         ]);
+        //TODO remove later
+        $mid = $request->memid;
+        $usr = member_basic_data::where("memid", $mid)->first();
+        if(!$usr && $request->pay == '1'){ //Log pay record
+            $puuid = now()->timestamp * 1000 . '';
+            $nm = $request->fname .' '. $request->lname;
+            $upl = [
+                "memid"=>$mid,
+                "ref"=> 'adsi-0-5000-'.$mid.'-'.$puuid,
+                "name"=> $nm,
+                "time"=> $puuid,
+                "amt"=> 5000,
+            ];
+            pays0::create($upl);
+        }
+        //---
         member_basic_data::updateOrCreate(
             ["memid"=> $request->memid,],
             [
@@ -355,17 +372,33 @@ class ApiController extends Controller
             "anum"=> "required",
             "aname"=> "required",
         ]);
-        member_financial_data::updateOrCreate(
-            ["memid"=> $request->memid,],
-            [
-            "bnk"=> $request->bnk,
-            "anum"=> $request->anum,
-            "aname"=> $request->aname,
-        ]);
-        // Respond
+        $ok = true;
+        $accts = member_financial_data::where("anum","=", $request->anum)->get();
+        if($accts){
+            foreach ($accts as $act) {
+                if($act->memid != $request->memid){
+                    $ok = false;
+                    break;
+                }
+            }
+        }
+        if($ok){
+            member_financial_data::updateOrCreate(
+                ["memid"=> $request->memid,],
+                [
+                "bnk"=> $request->bnk,
+                "anum"=> $request->anum,
+                "aname"=> $request->aname,
+            ]);
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success"
+            ]);
+        }
         return response()->json([
-            "status"=> true,
-            "message"=> "Success"
+            "status"=> false,
+            "message"=> "Account Number taken by someone else"
         ]);
     }
 
@@ -391,17 +424,60 @@ class ApiController extends Controller
     }
 
     //GET
-    public function getMemPays($memid){
-        $shares = pays2::where('memid', $memid)->get();
-        $dues = pays1::where('memid', $memid)->get();
-        $pld = [
-            's'=> $shares,
-            'd'=> $dues,
-        ];
+    public function getMemPays($memid,$payId){
+        $start = 0;
+        $count = 20;
+        if(request()->has('start') && request()->has('count')) {
+            $start = request()->input('start');
+            $count = request()->input('count');
+        }
+        $pld = null;
+        if($payId == '0'){
+            $pld = pays0::where('memid', $memid)
+            ->skip($start)
+            ->take($count)
+            ->get();
+        }
+        if($payId == '1'){
+            $pld = pays1::where('memid', $memid)
+            ->skip($start)
+            ->take($count)
+            ->get();
+        }
+        if($payId == '2'){
+            $pld = pays2::where('memid', $memid)
+            ->skip($start)
+            ->take($count)
+            ->get();
+        }
         return response()->json([
             "status"=> true,
             "message"=> "Success",
             "pld"=> $pld,
+        ]);  
+    }
+
+    //GET 
+    public function getMemPaysStat($memid,$payId){
+        $total = 0;
+        $count = 0;
+        if($payId=='0'){
+            $count = pays0::where('memid', $memid)->count();
+            $total = pays0::where('memid', $memid)->sum('amt');
+        }else if($payId=='1'){
+            $count = pays1::where('memid', $memid)->count();
+            $total = pays1::where('memid', $memid)->sum('amt');
+        }else if($payId=='2'){
+            $count = pays2::where('memid', $memid)->count();
+            $total = pays2::where('memid', $memid)->sum('amt');
+        }
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> [
+                'total'=>$total,
+                'count'=>$count,
+            ],
         ]);  
     }
 
@@ -423,16 +499,19 @@ class ApiController extends Controller
             'file' => 'required', //|mimes:jpeg,png,jpg,gif,svg|max:2048
             'filename' => 'required',
             'folder' => 'required',
+            'memid'=> 'required',
         ]);
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $filename = $request->filename;
             $folder = $request->folder;
+            if (!file_exists(public_path('uploads/' . $folder))) {
+                mkdir(public_path('uploads/' . $folder), 0777, true);
+            }
             $file->move(public_path('uploads/'.$folder), $filename);
             // Log It
-            $user = auth()->user();
             files::create([
-                'memid' => $user->memid,
+                'memid' => $request->memid,
                 'file'=> $filename,
                 'folder'=> $folder,
             ]);
@@ -461,7 +540,7 @@ class ApiController extends Controller
 
     //GET (FILE)
     public function getFile($folder,$filename){
-        $filePath = public_path('uploads/'.$folder.'/'.$filename);
+        $filePath = public_path('uploads/' . $folder . '/' . $filename);
         if (file_exists($filePath)) {
             return response()->file($filePath);
         } else {
@@ -677,12 +756,14 @@ class ApiController extends Controller
                 "ref"=> $ref,
                 "amt"=> $amt,
                 "time"=> $tm,
+                "amt"=> intval($amt)
             ]);*/
             $upl = [
                 "memid"=>$payinfo[3],
                 "ref"=> $ref,
                 "name"=> $nm,
                 "time"=> $tm,
+                "amt"=> intval($amt)
             ];
             if($payinfo[1]=='0'){
                 pays0::create($upl);
@@ -708,19 +789,89 @@ class ApiController extends Controller
         ],401);
     }
 
+    //GET 
+    public function getRevenue($payId){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $total = 0;
+            $count = 0;
+            if($payId=='0'){
+                $count = pays0::count();
+                $total = pays0::sum('amt');
+            }else if($payId=='1'){
+                $count = pays1::count();
+                $total = pays1::sum('amt');
+            }else if($payId=='2'){
+                $count = pays2::count();
+                $total = pays2::sum('amt');
+            }
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> [
+                    'total'=>$total,
+                    'count'=>$count,
+                ],
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET 
+    public function getOutstandingRegFees(){
+        $role = auth()->payload()->get('role');
+        if ( $role!=null  && $role=='0') {
+            $allPlds = [];
+            $mems = member_basic_data::where("pay","0")->get();
+            if($mems){
+                foreach ($mems as $mem) {
+                    $puuid = now()->timestamp * 1000 . '';
+                    $mid = $mem->memid;
+                    $nm = $mem->fname .' '. $mem->lname;
+                    $pr = [
+                        "memid"=> $mid,
+                        "ref"=> 'adsi-0-5000-'.$mid.'-'.$puuid,
+                        "name"=> $nm,
+                        "time"=> $puuid,
+                        "amt" => 5000
+                    ];
+                    $allPlds[$mid] = $pr;
+                }
+            }
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $allPlds
+            ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
      //GET
      public function getPayments($payId){
         $pp1 = auth()->payload()->get('pp1');
         if ( $pp1!=null  && $pp1=='1') { //Can read from dir
+            $start = 0;
+            $count = 20;
+            if(request()->has('start') && request()->has('count')) {
+                $start = request()->input('start');
+                $count = request()->input('count');
+            }
             $pld = null;
             if( $payId=='0' ){
-                $pld = pays0::all();
+                $pld = pays0::take($count)->skip($start)->get();
             }
             if( $payId=='1' ){
-                $pld = pays1::all();
+                $pld = pays1::take($count)->skip($start)->get();
             }
             if( $payId=='2' ){
-                $pld = pays2::all();
+                $pld = pays2::take($count)->skip($start)->get();
             }
             return response()->json([
                 "status"=> true,
