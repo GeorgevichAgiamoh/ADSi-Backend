@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ApiController extends Controller
@@ -108,7 +109,8 @@ class ApiController extends Controller
             $data = [
                 'name' => $mid,
                 'subject' => 'Reset your ADSI password',
-                'body' => 'Please go to this link to reset your password. It will expire in 1 hour: https://portal.adsicoop.com.ng/passwordreset/'.$token,
+                'body' => 'Please go to this link to reset your password. It will expire in 1 hour:',
+                'link'=>'https://portal.adsicoop.com.ng/passwordreset/'.$token,
             ];
         
             Mail::to($email)->send(new SSSMails($data));
@@ -162,7 +164,7 @@ class ApiController extends Controller
     //Paystack Webhook (POST, formdata)
     public function paystackConf(Request $request){ 
         Log::info('Paystack hooked ' . json_encode($request->all()));
-        $secret = 'sk_test_b3a8e08803d112049764495a5e08168d6514785f';
+        $secret = env('PAYSTACK_SECRET', 'sss_wrong_key');
         $computedHash = hash_hmac('sha512', $request->getContent(), $secret);// Dont use json_encode($request->all()) in hashing
         if ($computedHash == $request->header('x-paystack-signature')) {
             $payload = json_decode($request->getContent(), true);
@@ -505,10 +507,11 @@ class ApiController extends Controller
             $file = $request->file('file');
             $filename = $request->filename;
             $folder = $request->folder;
-            if (!file_exists(public_path('uploads/' . $folder))) {
-                mkdir(public_path('uploads/' . $folder), 0777, true);
+            if (!Storage::disk('public')->exists($folder)) {
+                // If it doesn't exist, create the directory
+                Storage::disk('public')->makeDirectory($folder);
             }
-            $file->move(public_path('uploads/'.$folder), $filename);
+            Storage::disk('public')->put($folder.'/'. $filename, file_get_contents($file));
             // Log It
             files::create([
                 'memid' => $request->memid,
@@ -540,9 +543,8 @@ class ApiController extends Controller
 
     //GET (FILE)
     public function getFile($folder,$filename){
-        $filePath = public_path('uploads/' . $folder . '/' . $filename);
-        if (file_exists($filePath)) {
-            return response()->file($filePath);
+        if (Storage::disk('public')->exists($folder.'/'.$filename)) {
+            return response()->file(Storage::disk('public')->path($folder.'/'.$filename));
         } else {
             return response()->json([
                 "status" => false,
@@ -553,8 +555,7 @@ class ApiController extends Controller
 
     //GET (FILE)
     public function fileExists($folder,$filename){
-        $filePath = public_path('uploads/'.$folder.'/'.$filename);
-        if (file_exists($filePath)) {
+        if (Storage::disk('public')->exists($folder.'/'.$filename)) {
             return response()->json([
                 "status" => true,
                 "message" => "Yes, it does",
@@ -1066,11 +1067,13 @@ class ApiController extends Controller
                 "email"=>"required",
                 "subject"=>"required",
                 "body"=> "required",
+                "link"=> "required",
             ]);
             $data = [
                 'name' => $request->name,
                 'subject' => $request->subject,
                 'body' => $request->body,
+                'link' => $request->link,
             ];
         
             Mail::to($request->email)->send(new SSSMails($data));
