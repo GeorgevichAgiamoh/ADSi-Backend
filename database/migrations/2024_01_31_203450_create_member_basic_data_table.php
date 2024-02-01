@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -21,7 +22,15 @@ return new class extends Migration
             $table->string('verif');
             $table->string('pay');
             $table->timestamps();
+
+            // For queries based on verif
+            $table->index('verif');
+            // For queries based on pay
+            $table->index('pay');
         });
+
+        // Add full-text index on multiple columns
+        DB::statement('ALTER TABLE member_basic_data ADD FULLTEXT INDEX mbi_fulltext (memid, eml, phn, lname, fname)');
     }
 
     /**

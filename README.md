@@ -19,6 +19,17 @@ Technology: PHP, Laravel, MySQL
 
 > Sending Mails (DONE) 
 
-> Optimizing ( 40% )
+> Optimizing ( 95% )
 
 > Messaging (...)
+
+
+
+## Indexes (FULL TEXT SEARCH)
+
+The following Tables/columns have been indexed.
+
+### Basic Data (member_basic_data)
+
+Index Name: fulltext_eml_phn_lname_fname
+Indexed columns: (eml, phn, lname, fname)

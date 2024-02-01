@@ -56,6 +56,7 @@ Route::group([
     Route::get('getAnnouncements', [ApiController::class, 'getAnnouncements']);
     Route::get('getFiles/{uid}', [ApiController::class, 'getFiles']);
     Route::get('getMemPaysStat/{memid}/{payId}', [ApiController::class, 'getMemPaysStat']);
+    Route::get('searchMemPayment/{memid}/{payId}', [ApiController::class, 'searchMemPayment']);
 
     Route::get('getHighlights', [ApiController::class, 'getHighlights']);
     Route::get('getVerificationStats', [ApiController::class, 'getVerificationStats']);
@@ -67,6 +68,8 @@ Route::group([
     Route::get('removeAdmin/{adminId}', [ApiController::class, 'removeAdmin']);
     Route::get('getRevenue/{payId}', [ApiController::class, 'getRevenue']);
     Route::get('getOutstandingRegFees', [ApiController::class, 'getOutstandingRegFees']);
+    Route::get('searchMember', [ApiController::class, 'searchMember']);
+    Route::get('searchPayment/{payId}', [ApiController::class, 'searchPayment']);
 
     
     Route::get('refresh', [ApiController::class,'refreshToken']);

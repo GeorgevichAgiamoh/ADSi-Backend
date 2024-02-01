@@ -729,9 +729,48 @@ class ApiController extends Controller
             }
             return response()->json([
                 "status"=> true,
-                "message"=> "Retrived the first $count starting at $start position",
+                "message"=> "Retrived the first ".$count." starting at ".$start." position",
                 "pld"=> $pld
             ]);   
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function searchMember(){
+        $pd1 = auth()->payload()->get('pd1');
+        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+            $search = null;
+            if(request()->has('search')) {
+                $search = request()->input('search');
+            }
+            if($search) {
+                $members = member_basic_data::whereRaw("MATCH(memid, eml, phn, lname, fname) AGAINST(? IN BOOLEAN MODE)", [$search])
+                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->take(5)
+                ->get();
+                $pld = [];
+                foreach ($members as $member) {
+                    $memid = $member->memid;
+                    $genData = member_general_data::where('memid', $memid)->first();
+                    $pld[] = [
+                        'b'=> $member,
+                        'g'=> $genData,
+                    ];
+                }
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Success",
+                    "pld"=> $pld
+                ]); 
+            }
+            return response()->json([
+                "status"=> false,
+                "message"=> "The Search param is required"
+            ]);
         }
         return response()->json([
             "status"=> false,
@@ -884,6 +923,92 @@ class ApiController extends Controller
             "status"=> false,
             "message"=> "Access denied"
         ],401);
+    }
+
+    //GET
+    public function searchPayment($payId){
+        $pp1 = auth()->payload()->get('pp1');
+        if ( $pp1!=null  && $pp1=='1') { //Can read from pay
+            $search = null;
+            if(request()->has('search')) {
+                $search = request()->input('search');
+            }
+            if($search) {
+                $pld = null;
+                if( $payId=='0' ){
+                    $pld = pays0::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->take(5)
+                    ->get();
+                }
+                if( $payId=='1' ){
+                    $pld = pays1::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->take(5)
+                    ->get();
+                }
+                if( $payId=='2' ){
+                    $pld = pays2::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->take(5)
+                    ->get();
+                }
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Success",
+                    "pld"=> $pld
+                ]); 
+            }
+            return response()->json([
+                "status"=> false,
+                "message"=> "The Search param is required"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    //GET
+    public function searchMemPayment($memid,$payId){
+        $search = null;
+        if(request()->has('search')) {
+            $search = request()->input('search');
+        }
+        if($search) {
+            $pld = null;
+            if( $payId=='0' ){
+                $pld = pays0::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                ->where('memid', $memid)
+                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->take(5)
+                ->get();
+            }
+            if( $payId=='1' ){
+                $pld = pays1::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                ->where('memid', $memid)
+                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->take(5)
+                ->get();
+            }
+            if( $payId=='2' ){
+                $pld = pays2::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                ->where('memid', $memid)
+                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->take(5)
+                ->get();
+            }
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]); 
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "The Search param is required"
+        ]);
     }
 
     //POST

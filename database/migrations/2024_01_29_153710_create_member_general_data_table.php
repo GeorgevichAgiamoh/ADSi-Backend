@@ -30,6 +30,9 @@ return new class extends Migration
             $table->text('kin_addr');
             $table->string('kin_eml');
             $table->timestamps();
+
+            // For queries based on sex
+            $table->index('sex');
         });
     }
 
