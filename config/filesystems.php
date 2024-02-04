@@ -39,7 +39,7 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => base_path('../uploads'),
-            'url' => 'https://adsicoop.com.ng/api/uploads',
+            'url' => 'https://adsicoop.com.ng/uploads',
             'visibility' => 'public',
             'throw' => false,
         ],

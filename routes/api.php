@@ -22,6 +22,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 // API Routes PREFIX = api
 
 // -- OPEN
+
+Route::post('paystackMain', [ApiController::class,'paystackMain']);
+
 Route::post('register', [ApiController::class,'register']);
 Route::post('login', [ApiController::class,'login']);
 Route::post('setFirstAdminUserInfo', [ApiController::class,'setFirstAdminUserInfo']); // For first Admin (call on postman)
@@ -39,6 +42,7 @@ Route::group([
     Route::post('setMemberFinancialInfo', [ApiController::class,'setMemberFinancialInfo']);
     Route::post('authAsAdmin', [ApiController::class,'authAsAdmin']);
     Route::post('uploadFile', [ApiController::class,'uploadFile']);
+    Route::post('registerOfflinePayment', [ApiController::class,'registerOfflinePayment']);
 
     Route::post('setAdminUserInfo', [ApiController::class,'setAdminUserInfo']);
     Route::post('setAnnouncements', [ApiController::class,'setAnnouncements']);
@@ -46,6 +50,8 @@ Route::group([
     Route::post('setAdsiInfo', [ApiController::class,'setAdsiInfo']);
     Route::post('setAdmin', [ApiController::class,'setAdmin']);
     Route::post('sendMail', [ApiController::class,'sendMail']);
+    Route::post('approveOfflinePayment', [ApiController::class,'approveOfflinePayment']);
+    Route::post('deleteOfflinePayment', [ApiController::class,'deleteOfflinePayment']);
     
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);

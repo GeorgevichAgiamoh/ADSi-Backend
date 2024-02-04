@@ -16,10 +16,12 @@ use App\Models\payment_refs;
 use App\Models\pays0;
 use App\Models\pays1;
 use App\Models\pays2;
+use App\Models\pays9;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -159,57 +161,33 @@ class ApiController extends Controller
         ]);
     }
     
-
-
     //Paystack Webhook (POST, formdata)
-    public function paystackConf(Request $request){ 
-        Log::info('Paystack hooked ' . json_encode($request->all()));
+    public function paystackMain(Request $request){ 
         $secret = env('PAYSTACK_SECRET', 'sss_wrong_key');
         $computedHash = hash_hmac('sha512', $request->getContent(), $secret);// Dont use json_encode($request->all()) in hashing
-        if ($computedHash == $request->header('x-paystack-signature')) {
+        if ($computedHash == $request->header('x-paystack-signature')) { //Ok, forward
+            
             $payload = json_decode($request->getContent(), true);
-            if($payload['event'] == "charge.success"){
-                $ref = $payload['data']['reference'];
-                $pld = payment_refs::where("ref","=", $ref)->first();
-                if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
-                    if(!$pld){ // Its unique
-                        $payinfo = explode('-',$ref);
-                        $amt = $payinfo[2];
-                        $nm = $payload['data']['metadata']['name'];
-                        $tm = $payload['data']['metadata']['time'];
-                        payment_refs::create([
-                            "ref"=> $ref,
-                            "amt"=> intval($amt),
-                            "time"=> $tm,
-                        ]);
-                        $upl = [
-                            "memid"=>$payinfo[3],
-                            "ref"=> $ref,
-                            "name"=> $nm,
-                            "time"=> $tm,
-                            "amt"=> intval($amt)
-                        ];
-                        if($payinfo[1]=='0'){
-                            pays0::create($upl);
-                            member_basic_data::where("memid", $payinfo[3])->update(['pay' => '1']);
-                        }else if ($payinfo[1]=='1'){
-                            $yr = $payload['data']['metadata']['year'];
-                            $upl['year'] = $yr;
-                            pays1::create($upl);
-                        }else{ // ie 2
-                            $sh = $payload['data']['metadata']['shares'];
-                            $upl['shares'] = $sh;
-                            pays2::create($upl);
-                        }
-                        Log::info('SUCCESS');
-                    }else{
-                        Log::info('PLD EXISTS'.json_encode($pld));
-                    }
-                }else{
-                    Log::info('STR BAD '.$ref);
-                }
+            $ref = $payload['data']['reference'];
+            $furl = null;
+            if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
+                $furl = 'https://api.adsicoop.com.ng/api/paystackConf';
+            }else if(Str::startsWith($ref,"nacdded-")){ //Its for ADSI
+                $furl = 'https://api.nacdded.org.ng/api/paystackConf';
             }else{
-                Log::info('EVENTS BAD '.$payload['event']);
+                Log::info('STR BAD '.$ref);
+            }
+            if($furl){
+                $response = Http::post($furl, [
+                    'payload' => $request->getContent(),
+                ]);
+    
+                if ($response->successful()) {
+                    return response()->json(['status' => 'success'], 200);
+                } else {
+                    Log::error('Failed to forward webhook to the second app.');
+                    return response()->json(['status' => 'error'], 500);
+                }
             }
             return response()->json(['status' => 'success'], 200);
         } else {
@@ -218,6 +196,56 @@ class ApiController extends Controller
             // Request is invalid
             return response()->json(['status' => 'error'], 401);
         }
+    }
+
+
+    //Paystack Webhook (POST, formdata)
+    public function paystackConf(Request $request){ 
+        $payload = json_decode($request->input('payload'), true);
+        if($payload['event'] == "charge.success"){
+            $ref = $payload['data']['reference'];
+            $pld = payment_refs::where("ref","=", $ref)->first();
+            if(Str::startsWith($ref,"adsi-")){ //Its for ADSI
+                if(!$pld){ // Its unique
+                    $payinfo = explode('-',$ref);
+                    $amt = $payinfo[2];
+                    $nm = $payload['data']['metadata']['name'];
+                    $tm = $payload['data']['metadata']['time'];
+                    payment_refs::create([
+                        "ref"=> $ref,
+                        "amt"=> intval($amt),
+                        "time"=> $tm,
+                    ]);
+                    $upl = [
+                        "memid"=>$payinfo[3],
+                        "ref"=> $ref,
+                        "name"=> $nm,
+                        "time"=> $tm,
+                        "amt"=> intval($amt)
+                    ];
+                    if($payinfo[1]=='0'){
+                        pays0::create($upl);
+                        member_basic_data::where("memid", $payinfo[3])->update(['pay' => '1']);
+                    }else if ($payinfo[1]=='1'){
+                        $yr = $payload['data']['metadata']['year'];
+                        $upl['year'] = $yr;
+                        pays1::create($upl);
+                    }else{ // ie 2
+                        $sh = $payload['data']['metadata']['shares'];
+                        $upl['shares'] = $sh;
+                        pays2::create($upl);
+                    }
+                    Log::info('SUCCESS');
+                }else{
+                    Log::info('PLD EXISTS'.json_encode($pld));
+                }
+            }else{
+                Log::info('STR BAD '.$ref);
+            }
+        }else{
+            Log::info('EVENTS BAD '.$payload['event']);
+        }
+        return response()->json(['status' => 'success'], 200);
     }
 
     //---Protected from here
@@ -573,11 +601,11 @@ class ApiController extends Controller
 
     public function setFirstAdminUserInfo(){
         admin_user::updateOrCreate(
-            ["memid"=> '11111111',],
+            ["memid"=> '55555555',],
             [
             "lname"=> 'ADSI',
-            "oname"=> 'Stable Shield',
-            "eml"=> 'admin@adsicoop.com.ng',
+            "oname"=> 'COOP ADMIN',
+            "eml"=> 'info@stableshield.com',
             "role"=> '0',
             "pd1"=> '1',
             "pd2"=> '1',
@@ -634,8 +662,7 @@ class ApiController extends Controller
 
     //GET 
     public function getHighlights(){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ($this->hasRole('0')) {
             $totalUsers = User::count();
             $totalMales = member_general_data::where('sex', 'M')->count();
             $totalFemales = member_general_data::where('sex', 'F')->count();
@@ -657,8 +684,7 @@ class ApiController extends Controller
 
     //POST
     public function setAnnouncements(Request $request){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ($this->hasRole('0')) {
               $request->validate([
                 "title"=>"required",
                 "msg"=> "required",
@@ -683,8 +709,7 @@ class ApiController extends Controller
 
     //GET 
     public function getVerificationStats(){
-        $pd1 = auth()->payload()->get('pd1');
-        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+        if ( $this->permOk('pd1')) { //Can read from dir
             $totalVerified = member_basic_data::where('verif', '1')->count();
             $totalUnverified = member_basic_data::where('verif', '0')->count();
             $totalDeleted = member_basic_data::where('verif', '2')->count();
@@ -712,8 +737,7 @@ class ApiController extends Controller
             $start = request()->input('start');
             $count = request()->input('count');
         }
-        $pd1 = auth()->payload()->get('pd1');
-        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+        if ( $this->permOk('pd1')) { //Can read from dir
             $members = member_basic_data::where('verif', $vstat)
                 ->skip($start)
                 ->take($count)
@@ -741,15 +765,14 @@ class ApiController extends Controller
 
     //GET
     public function searchMember(){
-        $pd1 = auth()->payload()->get('pd1');
-        if ( $pd1!=null  && $pd1=='1') { //Can read from dir
+        if ( $this->permOk('pd1')) { //Can read from dir
             $search = null;
             if(request()->has('search')) {
                 $search = request()->input('search');
             }
             if($search) {
                 $members = member_basic_data::whereRaw("MATCH(memid, eml, phn, lname, fname) AGAINST(? IN BOOLEAN MODE)", [$search])
-                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->orderByRaw("MATCH(memid, eml, phn, lname, fname) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                 ->take(5)
                 ->get();
                 $pld = [];
@@ -778,10 +801,116 @@ class ApiController extends Controller
         ],401);
     }
 
+    //---- FOR OFFLINE PAYMENTS [START]
+
+    //POST
+    //POST
+    public function registerOfflinePayment(Request $request){ 
+        $request->validate([
+            "ref"=> "required",
+            "name"=> "required",
+            "time"=> "required",
+            "proof"=> "required",
+            "meta"=> "required",
+        ]);
+        $ref = $request->ref;
+        $payinfo = explode('-',$ref);
+        $amt = $payinfo[2];
+        $nm = $request->name; 
+        $tm = $request->time;
+        $typ = $payinfo[1]; 
+        $upl = [
+            "memid"=>$payinfo[3],
+            "type"=>$typ,
+            "ref"=> $ref,
+            "name"=> $nm,
+            "time"=> $tm,
+            "proof"=> $request->proof,
+            "amt"=> intval($amt),
+            "meta"=> $request->meta,
+        ];
+        pays9::create($upl);
+        // Respond
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success"
+        ]);
+    }
+
+    public function approveOfflinePayment(Request $request){ 
+        if ( $this->permOk('pp2')) {
+            $request->validate([
+                "id"=> "required",
+            ]);
+            $pld = pays9::where('id', $request->id)->first();
+            $ref = $pld->ref;
+            $payinfo = explode('-',$ref);
+            $amt = $payinfo[2];
+            $nm = $pld->name; 
+            $tm = $pld->time;
+            $upl = [
+                "memid"=>$payinfo[3],
+                "ref"=> $ref,
+                "name"=> $nm,
+                "time"=> $tm,
+                "amt"=> intval($amt)
+            ];
+            if($payinfo[1]=='0'){
+                pays0::create($upl);
+                member_basic_data::where("memid", $payinfo[3])->update(['pay' => '1']);
+            }else if ($payinfo[1]=='1'){
+                $yr = $pld->meta;
+                $upl['year'] = $yr;
+                pays1::create($upl);
+            }else{ // ie 2
+                $sh = $pld->meta;
+                $upl['shares'] = $sh;
+                pays2::create($upl);
+            }
+            Pays9::where('id', $request->id)->delete();
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+    public function deleteOfflinePayment(Request $request){ 
+        if ( $this->permOk('pp2')) {
+            $request->validate([
+                "id"=> "required",
+            ]);
+            $pld = pays9::where('id', $request->id)->first();
+            Pays9::where('id', $request->id)->delete();
+            if (Storage::disk('public')->exists('pends' . '/' . $pld->memid.'_'.$pld->time)) {
+                Storage::disk('public')->delete('pends' . '/' . $pld->memid.'_'.$pld->time);
+            }
+            // Delete Log
+            files::where('folder', 'pends')->where('file', $pld->memid.'_'.$pld->time)->delete();
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success"
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Access denied"
+        ],401);
+    }
+
+
+
+    //---- FOR OFFLINE PAYMENTS [END]
+
     //POST
     public function uploadPayment(Request $request){ 
-        $pp2 = auth()->payload()->get('pp2');
-        if ( $pp2!=null  && $pp2=='1') {
+        if ( $this->permOk('pp2')) {
             $request->validate([
                 "ref"=> "required",
                 "name"=> "required",
@@ -831,8 +960,7 @@ class ApiController extends Controller
 
     //GET 
     public function getRevenue($payId){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ( $this->permOk('pp1')) {
             $total = 0;
             $count = 0;
             if($payId=='0'){
@@ -844,6 +972,9 @@ class ApiController extends Controller
             }else if($payId=='2'){
                 $count = pays2::count();
                 $total = pays2::sum('amt');
+            }else if($payId=='9'){
+                $count = pays9::count();
+                $total = pays9::sum('amt');
             }
             return response()->json([
                 "status"=> true,
@@ -862,8 +993,7 @@ class ApiController extends Controller
 
     //GET 
     public function getOutstandingRegFees(){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ( $this->permOk('pp1')) {
             $allPlds = [];
             $mems = member_basic_data::where("pay","0")->get();
             if($mems){
@@ -895,8 +1025,7 @@ class ApiController extends Controller
 
      //GET
      public function getPayments($payId){
-        $pp1 = auth()->payload()->get('pp1');
-        if ( $pp1!=null  && $pp1=='1') { //Can read from dir
+        if ( $this->permOk('pp1')) { //Can read from dir
             $start = 0;
             $count = 20;
             if(request()->has('start') && request()->has('count')) {
@@ -913,6 +1042,9 @@ class ApiController extends Controller
             if( $payId=='2' ){
                 $pld = pays2::take($count)->skip($start)->get();
             }
+            if( $payId=='9' ){
+                $pld = pays9::take($count)->skip($start)->get();
+            }
             return response()->json([
                 "status"=> true,
                 "message"=> "Success",
@@ -927,8 +1059,7 @@ class ApiController extends Controller
 
     //GET
     public function searchPayment($payId){
-        $pp1 = auth()->payload()->get('pp1');
-        if ( $pp1!=null  && $pp1=='1') { //Can read from pay
+        if ( $this->permOk('pp1')) { //Can read from pay
             $search = null;
             if(request()->has('search')) {
                 $search = request()->input('search');
@@ -937,19 +1068,25 @@ class ApiController extends Controller
                 $pld = null;
                 if( $payId=='0' ){
                     $pld = pays0::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
-                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                     ->take(5)
                     ->get();
                 }
                 if( $payId=='1' ){
                     $pld = pays1::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
-                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                     ->take(5)
                     ->get();
                 }
                 if( $payId=='2' ){
                     $pld = pays2::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
-                    ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                    ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
+                    ->take(5)
+                    ->get();
+                }
+                if( $payId=='9' ){
+                    $pld = pays9::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
+                    ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                     ->take(5)
                     ->get();
                 }
@@ -981,21 +1118,21 @@ class ApiController extends Controller
             if( $payId=='0' ){
                 $pld = pays0::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
                 ->where('memid', $memid)
-                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                 ->take(5)
                 ->get();
             }
             if( $payId=='1' ){
                 $pld = pays1::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
                 ->where('memid', $memid)
-                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                 ->take(5)
                 ->get();
             }
             if( $payId=='2' ){
                 $pld = pays2::whereRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE)", [$search])
                 ->where('memid', $memid)
-                ->orderByRaw("MATCH(memid) AGAINST(? IN BOOLEAN MODE) ASC", [$search])
+                ->orderByRaw("MATCH(name, ref, memid) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
                 ->take(5)
                 ->get();
             }
@@ -1013,8 +1150,7 @@ class ApiController extends Controller
 
     //POST
     public function setAdsiInfo(Request $request){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ($this->hasRole('0')) {
             $request->validate([
                 "memid"=>"required",
                 "cname"=>"required",
@@ -1063,9 +1199,8 @@ class ApiController extends Controller
 
     //GET
     public function getAsdiInfo(){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
-            $pld = adsi_info::where('memid', '11111111')->first();
+        if ($this->hasRole('0')) {
+            $pld = adsi_info::where('memid', '55555555')->first();
             if($pld){
                 return response()->json([
                     "status"=> true,
@@ -1086,8 +1221,7 @@ class ApiController extends Controller
 
      //GET
      public function getAdmins(){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ($this->hasRole('0')) {
             $pld = admin_user::all();
             return response()->json([
                 "status"=> true,
@@ -1120,8 +1254,7 @@ class ApiController extends Controller
 
     //POST
     public function setAdmin(Request $request){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null  && $role=='0') {
+        if ($this->hasRole('0')) {
             $request->validate([
                 "memid"=>"required",
                 "lname"=>"required",
@@ -1163,8 +1296,7 @@ class ApiController extends Controller
 
     //GET
     public function removeAdmin($adminId){
-        $role = auth()->payload()->get('role');
-        if ( $role!=null && $role=='0') {
+        if ($this->hasRole('0')) {
             $dels = admin_user::where('memid', $adminId)->delete();
             if($dels>0){
                 return response()->json([
@@ -1185,8 +1317,7 @@ class ApiController extends Controller
 
     //POST 
     public function sendMail(Request $request){
-        $pd2 = auth()->payload()->get('pd2');
-        if ( $pd2!=null  && $pd2=='1') { //Can write to dir
+        if ( $this->permOk('pd2')) { //Can write to dir
             $request->validate([
                 "name"=>"required",
                 "email"=>"required",
@@ -1248,6 +1379,21 @@ class ApiController extends Controller
             "status"=> true,
             "message"=> "Logout successful",
         ]);
+    }
+
+
+    //---NON ENDPOINTS
+
+    public function permOk($pid): bool
+    {
+        $pp = auth()->payload()->get($pid);
+        return $pp!=null  && $pp=='1';
+    }
+
+    public function hasRole($rid): bool
+    {
+        $role = auth()->payload()->get('role');
+        return $role!=null  && $role==$rid;
     }
 
 }
