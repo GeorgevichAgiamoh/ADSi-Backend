@@ -52,6 +52,7 @@ Route::group([
     Route::post('sendMail', [ApiController::class,'sendMail']);
     Route::post('approveOfflinePayment', [ApiController::class,'approveOfflinePayment']);
     Route::post('deleteOfflinePayment', [ApiController::class,'deleteOfflinePayment']);
+    Route::post('resetMemberPassword', [ApiController::class,'resetMemberPassword']);
     
     Route::get('getMemberBasicInfo/{uid}', [ApiController::class, 'getMemberBasicInfo']);
     Route::get('getMemberGeneralInfo/{uid}', [ApiController::class, 'getMemberGeneralInfo']);
