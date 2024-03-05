@@ -7,10 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class password_reset_tokens extends Model
 {
     protected $table = 'password_reset_tokens'; 
-    protected $primaryKey = 'email';
+    protected $primaryKey = 'memid';
     public $incrementing = false;
     protected $fillable = [
-        'email', 'token'
+        'memid', 'token'
     ];
     /*protected $hidden = [
         'password',

@@ -11,6 +11,8 @@ use App\Models\files;
 use App\Models\member_basic_data;
 use App\Models\member_financial_data;
 use App\Models\member_general_data;
+use App\Models\msg;
+use App\Models\msgthread;
 use App\Models\password_reset_tokens;
 use App\Models\payment_refs;
 use App\Models\pays0;
@@ -33,7 +35,7 @@ class ApiController extends Controller
         //Data validation
         $request->validate([
             "memid"=>"required|unique:users",
-            "email"=> "required|unique:users|email",
+            "email"=> "required|email",
             "password"=> "required",
         ]);
         //Save Data to DB
@@ -105,8 +107,8 @@ class ApiController extends Controller
             $email = $pld->email;
             $token = Str::random(60); //Random reset token
             password_reset_tokens::updateOrCreate(
-                ['email' => $email],
-                ['email' => $email, 'token' => $token]
+                ['memid' => $mid],
+                ['token' => $token]
             );
             $data = [
                 'name' => $mid,
@@ -139,8 +141,8 @@ class ApiController extends Controller
         ]);
         $pld = password_reset_tokens::where("token","=", $request->token)->first();
         if($pld){
-            $email = $pld->email;
-            $usr = User::where("email","=", $email)->first();
+            $mid = $pld->memid;
+            $usr = User::where("memid","=", $mid)->first();
             if($usr){
                 $usr->update([
                     "password"=>bcrypt($request->pwd),
@@ -404,33 +406,17 @@ class ApiController extends Controller
             "anum"=> "required",
             "aname"=> "required",
         ]);
-        $ok = true;
-        $accts = member_financial_data::where("anum","=", $request->anum)->get();
-        if($accts){
-            foreach ($accts as $act) {
-                if($act->memid != $request->memid){
-                    $ok = false;
-                    break;
-                }
-            }
-        }
-        if($ok){
-            member_financial_data::updateOrCreate(
-                ["memid"=> $request->memid,],
-                [
-                "bnk"=> $request->bnk,
-                "anum"=> $request->anum,
-                "aname"=> $request->aname,
-            ]);
-            // Respond
-            return response()->json([
-                "status"=> true,
-                "message"=> "Success"
-            ]);
-        }
+        member_financial_data::updateOrCreate(
+            ["memid"=> $request->memid,],
+            [
+            "bnk"=> $request->bnk,
+            "anum"=> $request->anum,
+            "aname"=> $request->aname,
+        ]);
+        // Respond
         return response()->json([
-            "status"=> false,
-            "message"=> "Account Number taken by someone else"
+            "status"=> true,
+            "message"=> "Success"
         ]);
     }
 
@@ -596,6 +582,306 @@ class ApiController extends Controller
                 "message" => "File not found",
             ]);
         }
+    }
+
+    //--- msg
+
+    /**
+     * @OA\Get(
+     *     path="/api/searchMsgThread",
+     *     tags={"Api"},
+     *     summary="Full text search on subjects",
+     *     description=" Use this endpoint for Full text search on message subjects",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\Parameter(
+     *         name="search",
+     *         in="query",
+     *         required=true,
+     *         description="Search term",
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(response="200", description="Success", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function searchMsgThread(){
+        $search = null;
+        if(request()->has('search')) {
+            $search = request()->input('search');
+        }
+        if($search) {
+            $pld = msgthread::whereRaw("MATCH(subject) AGAINST(? IN BOOLEAN MODE)", [$search])
+            ->orderByRaw("MATCH(subject) AGAINST(? IN BOOLEAN MODE) DESC", [$search])
+            ->take(2)
+            ->get();
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=> $pld
+            ]); 
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "The Search param is required"
+        ]);
+    }
+    
+
+
+     /**
+     * @OA\Get(
+     *     path="/api/getMyMessagesStat/{uid}",
+     *     tags={"Api"},
+     *     summary="Get Message Count by UID",
+     *     description="Use this endpoint to get messages count for this `uid`",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\Parameter(
+     *         name="uid",
+     *         in="path",
+     *         required=true,
+     *         description="User ID",
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(response="200", description="Success", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function getMyMessagesStat($uid){
+        $totalMessages = msgthread::where('from_uid', $uid)->orWhere('to_uid', $uid)->count();
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> [
+                "totalMessages"=>$totalMessages,
+            ],
+        ]);
+    }
+
+
+     /**
+     * @OA\Get(
+     *     path="/api/getMyMessages/{uid}",
+     *     tags={"Api"},
+     *     summary="Get Message Threads by UID",
+     *     description="Use this endpoint to get messages Threads for this `uid`",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\Parameter(
+     *         name="uid",
+     *         in="path",
+     *         required=true,
+     *         description="User ID",
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Parameter(
+     *         name="start",
+     *         in="query",
+     *         required=false,
+     *         description="Index to start at",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Parameter(
+     *         name="count",
+     *         in="query",
+     *         required=false,
+     *         description="No of records to retrieve",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(response="200", description="Success", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function getMyMessages($uid){
+        $start = 0;
+        $count = 20;
+        if(request()->has('start') && request()->has('count')) {
+            $start = request()->input('start');
+            $count = request()->input('count');
+        }
+        $pld = msgthread::where('from_uid', $uid)->orWhere('to_uid', $uid)->skip($start)->take($count)->get();
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $pld,
+        ]);
+    }
+
+     /**
+     * @OA\Get(
+     *     path="/api/getMessageThread/{tid}",
+     *     tags={"Api"},
+     *     summary="Get Messages by thread id",
+     *     description="Use this endpoint to get messages for this `tid`",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\Parameter(
+     *         name="tid",
+     *         in="path",
+     *         required=true,
+     *         description="Thread ID",
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Parameter(
+     *         name="start",
+     *         in="query",
+     *         required=false,
+     *         description="Index to start at",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Parameter(
+     *         name="count",
+     *         in="query",
+     *         required=false,
+     *         description="No of records to retrieve",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(response="200", description="Success", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function getMessageThread($tid){
+        $start = 0;
+        $count = 20;
+        if(request()->has('start') && request()->has('count')) {
+            $start = request()->input('start');
+            $count = request()->input('count');
+        }
+        $pld = msg::where('tid', $tid)->skip($start)->take($count)->get();
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=> $pld,
+        ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/createMsgThread",
+     *     tags={"Api"},
+     *     summary="Create a new message thread",
+     *     description="Use this endpoint to create a new message thread.",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="from", type="string", description="Name of the person sending"),
+     *             @OA\Property(property="from_uid", type="string", description="User ID of the person sending"),
+     *             @OA\Property(property="to", type="string", description="Name of the person receiving"),
+     *             @OA\Property(property="to_uid", type="string", description="User ID of the person receiving"),
+     *             @OA\Property(property="subject", type="string", description="Message Subject"),
+     *             @OA\Property(property="from_mail", type="string", description=",,"),
+     *             @OA\Property(property="to_mail", type="string", description=",,"),
+     *             @OA\Property(property="last_msg", type="string", description="Last Message (First in this case) - Shown in preview"),
+     *         )
+     *     ),
+     *     @OA\Response(response="200", description="Success"),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function createMsgThread(Request $request){
+        $request->validate([
+            "from"=> "required",
+            "from_uid"=> "required",
+            "to"=> "required",
+            "to_uid"=> "required",
+            "last_msg"=> "required",
+            "subject"=>"required",
+            "from_mail"=>"required",
+            "to_mail"=>"required"
+        ]);
+        $mt = msgthread::create([
+            "from"=> $request->from,
+            "from_uid"=> $request->from_uid,
+            "to"=> $request->to,
+            "to_uid"=> $request->to_uid,
+            "last_msg"=> $request->last_msg,
+            "subject"=> $request->subject,
+            "from_mail"=> $request->from_mail,
+            "to_mail"=> $request->to_mail,
+        ]);
+        return response()->json([
+            "status"=> true,
+            "message"=> "Success",
+            "pld"=>$mt
+        ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/sendMsg",
+     *     tags={"Api"},
+     *     summary="Send a message",
+     *     description="Use this endpoint to send a chat. You may also notify by mail",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="body", type="string", description="Message content"),
+     *             @OA\Property(property="who", type="string", description="User ID of the person sending"),
+     *             @OA\Property(property="tid", type="string", description="Thread ID of the message"),
+     *             @OA\Property(property="mail", type="string", description="If not empty, user will be mailed"),
+     *             @OA\Property(property="art", type="string", description="Document ID"),
+     *         )
+     *     ),
+     *     @OA\Response(response="200", description="Success"),
+     *     @OA\Response(response="401", description="Unauthorized"),
+     * )
+     */
+    public function sendMsg(Request $request){
+        $request->validate([
+            "body"=> "required",
+            "who"=> "required",
+            "tid"=> "required",
+            "mail"=> "required",
+            "art"=> "required",
+        ]);
+        $trd = msgthread::where('id',intval($request->tid))->first();
+        if($trd){
+            $ms=msg::create([
+                "tid"=> $request->tid,
+                "body"=> $request->body,
+                "who"=> $request->who,
+                "art"=> $request->art,
+            ]);
+            $trd->update([
+                "last_msg"=>$request->body,
+            ]);
+            if($request->mail!=''){
+                $isPerson1 = $request->who == $trd->from_uid;
+                $from = null;
+                $to = null;
+                if($isPerson1){
+                    $from = $trd->from;
+                    $to = $trd->to;
+                }else{
+                    $from = $trd->to;
+                    $to = $trd->from;
+                }
+                $data = [
+                    'name' => $from.' -> '.$to,
+                    'subject' => $trd->subject,
+                    'body' => $request->body,
+                    'link'=>$request->art!='_'?'https://api.schoolsilo.cloud/getFile/msg/'.$request->art:'https://portal.schoolsilo.cloud'
+                ];
+            
+                Mail::to($request->mail)->send(new SSSMails($data));
+                return response()->json([
+                    "status"=> true,
+                    "message"=> "Success (User was also mailed)",
+                    "pld"=>$ms
+                ]);
+            }
+            // Respond
+            return response()->json([
+                "status"=> true,
+                "message"=> "Success",
+                "pld"=>$ms
+            ]);
+        }
+        return response()->json([
+            "status"=> false,
+            "message"=> "Thread not found"
+        ]);
     }
 
 
@@ -1321,11 +1607,11 @@ class ApiController extends Controller
     public function resetMemberPassword(Request $request){
         //Data validation
         $request->validate([
-            "email"=>"required",
+            "memid"=>"required",
             "pwd"=>"required",
         ]);
         if ($this->hasRole('0')) {
-            $usr = User::where("email","=", $request->email)->first();
+            $usr = User::where("memid","=", $request->memid)->first();
             if($usr){
                 $usr->update([
                     "password"=>bcrypt($request->pwd),

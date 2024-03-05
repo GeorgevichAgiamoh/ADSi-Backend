@@ -82,5 +82,15 @@ Route::group([
     Route::get('refresh', [ApiController::class,'refreshToken']);
     Route::get('logout', [ApiController::class,'logout']);
     Route::get('checkTokenValidity', [ApiController::class,'checkTokenValidity']);
+
+     //--MESSAGES
+     Route::post('createMsgThread', [ApiController::class,'createMsgThread']);
+     Route::post('sendMsg', [ApiController::class,'sendMsg']);
+ 
+     Route::get('getMyMessages/{uid}', [ApiController::class, 'getMyMessages']);
+     Route::get('getMessageThread/{tid}', [ApiController::class, 'getMessageThread']);
+     Route::get('getMyMessagesStat/{tid}', [ApiController::class, 'getMyMessagesStat']);
+     Route::get('searchMsgThread', [ApiController::class, 'searchMsgThread']);
+ 
     
 });
